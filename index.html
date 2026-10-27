@@ -1,0 +1,1042 @@
+# b-d-ng-l-n-h-ng
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pink Horizon Racing - Bé Dương</title>
+    <!-- Tailwind CSS cho Giao diện HUD -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Nunito', sans-serif;
+            user-select: none;
+            background-color: #ffd1dc;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        .title-font {
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 15px rgba(255, 105, 180, 0.9), 0 0 30px rgba(255, 20, 147, 0.9), 0 0 45px rgba(255, 255, 255, 1);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1.5px solid rgba(255, 255, 255, 0.65);
+            box-shadow: 0 8px 32px 0 rgba(255, 105, 180, 0.25);
+        }
+
+        @keyframes pulse-slow {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .animate-pulse-slow {
+            animation: pulse-slow 2s ease-in-out infinite;
+        }
+
+        #minimap {
+            background: rgba(255, 192, 203, 0.45);
+            border: 2px solid rgba(255, 255, 255, 0.85);
+            border-radius: 50%;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Nitro Bar FX */
+        .nitro-bar-fill {
+            transition: width 0.1s linear;
+            background: linear-gradient(90deg, #ff007f, #ff69b4, #00ffff);
+            box-shadow: 0 0 12px #ff007f;
+        }
+    </style>
+</head>
+<body class="bg-pink-100 overflow-hidden">
+
+    <!-- Container Render Three.js -->
+    <div id="canvas-container"></div>
+
+    <!-- HUD Overlay trong game -->
+    <div id="hud" class="fixed top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-3 sm:p-6 z-10 hidden">
+        <!-- Bảng thông tin phía trên -->
+        <div class="flex justify-between items-start w-full">
+            <!-- Vị trí Ranks & Laps -->
+            <div class="flex gap-2 sm:gap-4">
+                <div class="glass-panel rounded-2xl p-2.5 px-4 sm:p-3 sm:px-5 flex items-center gap-3 text-white">
+                    <i class="fa-solid fa-trophy text-amber-300 text-2xl sm:text-3xl"></i>
+                    <div>
+                        <div class="text-[9px] sm:text-[10px] uppercase tracking-wider font-extrabold text-pink-900">HẠNG</div>
+                        <div class="text-2xl sm:text-3xl font-black title-font text-white drop-shadow"><span id="hud-rank">1</span><span class="text-xs sm:text-base font-bold text-pink-100">/4</span></div>
+                    </div>
+                </div>
+
+                <div class="glass-panel rounded-2xl p-2.5 px-4 sm:p-3 sm:px-5 text-center text-white">
+                    <div class="text-[9px] sm:text-[10px] uppercase tracking-wider font-extrabold text-pink-900">VÒNG ĐUA</div>
+                    <div id="hud-lap" class="text-xl sm:text-2xl font-black title-font text-white">1/3</div>
+                </div>
+            </div>
+
+            <!-- Minimap & Thời gian -->
+            <div class="flex items-center gap-3 sm:gap-4">
+                <div class="glass-panel rounded-2xl p-2.5 px-4 sm:p-3 sm:px-5 text-center text-white">
+                    <div class="text-[9px] sm:text-[10px] uppercase tracking-wider font-extrabold text-pink-900">THỜI GIAN</div>
+                    <div id="hud-time" class="text-lg sm:text-2xl font-black title-font text-white">00:00.00</div>
+                </div>
+                <!-- Minimap Canvas -->
+                <canvas id="minimap" width="90" height="90" class="sm:w-[110px] sm:h-[110px]"></canvas>
+            </div>
+        </div>
+
+        <!-- Bảng Nitro & Tốc độ góc dưới -->
+        <div class="flex justify-between items-end w-full">
+            <!-- Nút điều khiển cảm ứng Mobile (Bên trái) -->
+            <div class="pointer-events-auto sm:hidden flex gap-2">
+                <button id="btn-left" class="w-12 h-12 bg-white/40 active:bg-pink-400 rounded-full flex items-center justify-center text-white text-lg backdrop-blur-md border border-white/60 shadow-lg"><i class="fa-solid fa-arrow-left"></i></button>
+                <button id="btn-right" class="w-12 h-12 bg-white/40 active:bg-pink-400 rounded-full flex items-center justify-center text-white text-lg backdrop-blur-md border border-white/60 shadow-lg"><i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+
+            <!-- Trung tâm: Thanh Nitro & Đồng hồ tốc độ -->
+            <div class="flex flex-col items-center gap-2">
+                <!-- Thanh Nitro -->
+                <div class="glass-panel p-2 rounded-xl w-40 sm:w-56 flex flex-col gap-1">
+                    <div class="flex justify-between text-[10px] font-black text-pink-900 px-1">
+                        <span><i class="fa-solid fa-bolt text-yellow-300 mr-1"></i>NITRO (SPACE / SHIFT)</span>
+                        <span id="nitro-text">100%</span>
+                    </div>
+                    <div class="w-full bg-black/20 h-3 rounded-full overflow-hidden p-0.5 border border-white/40">
+                        <div id="nitro-bar" class="nitro-bar-fill h-full w-full rounded-full"></div>
+                    </div>
+                </div>
+
+                <!-- Đồng đồng tốc độ -->
+                <div class="glass-panel rounded-full p-4 text-white text-center w-28 h-28 sm:w-36 sm:h-36 flex flex-col items-center justify-center border-4 border-pink-200/80 shadow-2xl">
+                    <div id="hud-speed" class="text-2xl sm:text-4xl font-black title-font leading-none text-white drop-shadow">0</div>
+                    <div class="text-[9px] sm:text-[10px] font-extrabold text-pink-900 mt-1">KM/H</div>
+                </div>
+            </div>
+
+            <!-- Nút Nitro & Ga/Phanh cảm ứng Mobile (Bên phải) -->
+            <div class="pointer-events-auto sm:hidden flex flex-col gap-2 items-end">
+                <button id="btn-nitro" class="w-12 h-12 bg-yellow-400/80 active:bg-yellow-500 rounded-full flex items-center justify-center text-white text-lg backdrop-blur-md border border-white/60 shadow-lg"><i class="fa-solid fa-bolt"></i></button>
+                <div class="flex gap-2">
+                    <button id="btn-brake" class="w-12 h-12 bg-red-400/60 active:bg-red-500 rounded-full flex items-center justify-center text-white text-lg backdrop-blur-md border border-white/60 shadow-lg"><i class="fa-solid fa-arrow-down"></i></button>
+                    <button id="btn-gas" class="w-14 h-14 bg-pink-500/80 active:bg-pink-600 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-md border border-white/60 shadow-lg"><i class="fa-solid fa-arrow-up"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Màn hình bắt đầu (Start Screen) -->
+    <div id="start-screen" class="fixed inset-0 z-20 flex items-center justify-center bg-gradient-to-br from-pink-200 via-rose-100 to-pink-300 p-4">
+        <div class="glass-panel p-6 sm:p-10 rounded-3xl max-w-md w-full text-center border-2 border-white/80 shadow-2xl">
+            <div class="w-20 h-20 bg-white/60 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-600 text-3xl animate-float shadow-inner">
+                <i class="fa-solid fa-flag-checkered"></i>
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-black text-pink-900 title-font mb-2 drop-shadow-sm">PINK HORIZON RACING</h1>
+            <p class="text-pink-800 font-bold mb-5 text-sm">Bầu trời hồng pastel, hàng rào vật lý an toàn & hoa hồng rực rỡ!</p>
+            
+            <div class="bg-white/40 rounded-2xl p-4 mb-6 text-left text-pink-950 text-xs sm:text-sm space-y-2 border border-white/60">
+                <div class="font-black text-pink-900 text-base mb-1 flex items-center gap-2"><i class="fa-solid fa-gamepad text-pink-600"></i> Bảng điều khiển:</div>
+                <div>🎮 <b>W / Phím Lên</b>: Tăng tốc tiến</div>
+                <div>🎮 <b>S / Phím Xuống</b>: Phanh / Lùi xe</div>
+                <div>🎮 <b>A, D / Phím Trái, Phải</b>: Bẻ lái sang 2 bên</div>
+                <div>⚡ <b>SPACE / SHIFT</b>: Kích hoạt NITRO Tăng Tốc!</div>
+                <div>🏁 Hoàn thành đủ <b>3 VÒNG ĐUA</b> để cán đích chiến thắng!</div>
+            </div>
+
+            <button id="btn-start" class="w-full py-4 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-black text-xl rounded-2xl shadow-xl hover:shadow-pink-400/50 transition-all duration-300 transform hover:-translate-y-1 active:translate-y-0">
+                BẮT ĐẦU ĐỦA NGAY <i class="fa-solid fa-play ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Màn hình Chiến Thắng (Win Screen) -->
+    <div id="win-screen" class="fixed inset-0 z-30 flex items-center justify-center bg-pink-950/40 backdrop-blur-md p-4 hidden">
+        <div class="glass-panel p-6 sm:p-12 rounded-3xl max-w-2xl w-full text-center border-4 border-pink-300 shadow-2xl animate-pulse-slow">
+            <div class="inline-block p-4 rounded-full bg-amber-400/30 text-amber-300 text-5xl mb-2 animate-bounce">
+                👑
+            </div>
+            
+            <h2 class="text-lg sm:text-2xl font-black text-pink-100 uppercase tracking-widest mb-1">VICTORY - CHIẾN THẮNG RỰC RỠ!</h2>
+            
+            <!-- THÔNG ĐIỆP CHUẨN YÊU CẦU 100% -->
+            <div class="my-5 py-6 px-4 bg-gradient-to-r from-pink-500 via-rose-500 to-pink-500 rounded-2xl border-2 border-white shadow-2xl">
+                <h1 id="win-message" class="text-2xl sm:text-4xl font-black text-yellow-300 title-font glow-text leading-tight uppercase tracking-wider">
+                    bé dương vú bự xinh gái nhất thế giới
+                </h1>
+            </div>
+
+            <p class="text-pink-100 font-bold text-sm sm:text-base mb-6">Chúc mừng bạn đã xuất sắc vượt qua 3 vòng đua và cán đích đầu tiên!</p>
+
+            <button id="btn-restart" class="pointer-events-auto px-8 py-4 bg-white text-pink-600 font-black text-xl rounded-2xl shadow-2xl hover:bg-pink-100 hover:scale-105 transition-all duration-300">
+                <i class="fa-solid fa-rotate-right mr-2"></i> Chơi Lại Lần Nữa
+            </button>
+        </div>
+    </div>
+
+    <!-- Logic Three.js Game -->
+    <script>
+        // --- 1. BIẾN TOÀN CỤC ---
+        let scene, camera, renderer;
+        let playerCar, playerSpeed = 0;
+        let keyState = {};
+        let gameState = 'START'; // START, PLAYING, WON
+        let trackPoints = [];
+        let trackCurve;
+        let aiCars = [];
+        let birds = [];
+        let clouds = [];
+        let fireworks = [];
+        let startTime = 0;
+        let elapsedTime = 0;
+        
+        // Vòng đua (Laps) & Tiến trình
+        let playerLap = 1;
+        const TOTAL_LAPS = 3;
+        let lastProgress = 0;
+        let playerTotalProgress = 0; // Tiến trình tổng cộng qua nhiều vòng
+
+        // Nitro Logic
+        let nitroAmount = 100; // 0 - 100
+        let isNitroActive = false;
+
+        // Minimap
+        let minimapCanvas, minimapCtx;
+
+        // Bán kính chiều rộng đường đua vật lý (Track Half-Width)
+        const TRACK_HALF_WIDTH = 9.2;
+
+        // Thông số xe
+        const BASE_MAX_SPEED = 0.85;
+        const NITRO_MAX_SPEED = 1.35;
+        const ACCELERATION = 0.018;
+        const FRICTION = 0.982;
+        const TURN_SPEED = 0.038;
+
+        // --- 2. KHỞI TẠO THREE.JS ---
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            minimapCanvas = document.getElementById('minimap');
+            minimapCtx = minimapCanvas.getContext('2d');
+
+            // Scene & Fog hồng nhạt dịu mắt
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffd1dc); 
+            scene.fog = new THREE.FogExp2(0xffd1dc, 0.0055); 
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, -10);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.15;
+            container.appendChild(renderer.domElement);
+
+            // Ánh sáng bầu trời pastel
+            const ambientLight = new THREE.AmbientLight(0xffe4e1, 0.95);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfff0f5, 1.35);
+            sunLight.position.set(100, 80, -80);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 350;
+            const d = 140;
+            sunLight.shadow.camera.left = -d;
+            sunLight.shadow.camera.right = d;
+            sunLight.shadow.camera.top = d;
+            sunLight.shadow.camera.bottom = -d;
+            scene.add(sunLight);
+
+            const hemiLight = new THREE.HemisphereLight(0xffc0cb, 0x90ee90, 0.6);
+            scene.add(hemiLight);
+
+            // Mặt trời 3D
+            const sunGeo = new THREE.SphereGeometry(14, 32, 32);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xfff8fa });
+            const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+            sunMesh.position.set(130, 95, -220);
+            scene.add(sunMesh);
+
+            // --- TẠO CẢNH QUAN ---
+            createTrack();
+            createPhysicalFences();
+            createEnvironment();
+            createClouds();
+            createBirds();
+
+            // --- TẠO XE NGƯỜI CHƠI & AI ---
+            playerCar = createCar(0xff1493, true); // Xe hồng thể thao
+            scene.add(playerCar);
+
+            createAICars();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            setupControls();
+
+            // Vòng lặp Render
+            animate();
+        }
+
+        // --- 3. ĐƯỜNG ĐUA & HÀNG RÀO VẬT LÝ KÍN ---
+        function createTrack() {
+            // Tọa độ đường đua uốn lượn rộng rãi
+            trackPoints = [
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(45, 0, 95),
+                new THREE.Vector3(150, 0, 170),
+                new THREE.Vector3(230, 0, 95),
+                new THREE.Vector3(250, 0, -65),
+                new THREE.Vector3(170, 0, -170),
+                new THREE.Vector3(30, 0, -200),
+                new THREE.Vector3(-95, 0, -140),
+                new THREE.Vector3(-115, 0, -35)
+            ];
+
+            trackCurve = new THREE.CatmullRomCurve3(trackPoints, true);
+
+            // Lòng đường nhựa
+            const trackGeometry = new THREE.TubeGeometry(trackCurve, 250, 10, 14, true);
+            const trackMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3d3a45,
+                roughness: 0.65,
+                metalness: 0.1
+            });
+            const trackMesh = new THREE.Mesh(trackGeometry, trackMaterial);
+            trackMesh.scale.y = 0.04;
+            trackMesh.position.y = -0.1;
+            trackMesh.receiveShadow = true;
+            scene.add(trackMesh);
+
+            // Vạch Kẻ Đường Trung Tâm (Yellow Dash Lines)
+            const lineSamples = 150;
+            const dashGeo = new THREE.BoxGeometry(0.3, 0.05, 2.5);
+            const dashMat = new THREE.MeshBasicMaterial({ color: 0xffeb3b });
+            for (let i = 0; i < lineSamples; i += 2) {
+                const u = i / lineSamples;
+                const pt = trackCurve.getPointAt(u);
+                const tangent = trackCurve.getTangentAt(u);
+                const dash = new THREE.Mesh(dashGeo, dashMat);
+                dash.position.set(pt.x, 0.02, pt.z);
+                const angle = Math.atan2(tangent.x, tangent.z);
+                dash.rotation.y = angle;
+                scene.add(dash);
+            }
+
+            // VẠCH XUẤT PHÁT VÀ CÁN ĐÍCH (START / FINISH LINE)
+            const startPos = trackCurve.getPointAt(0);
+            const startTangent = trackCurve.getTangentAt(0);
+            
+            const finishGeo = new THREE.BoxGeometry(20, 0.1, 3.5);
+            
+            // Texture ô vuông Caro Trắng/Đen
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 128, 32);
+            ctx.fillStyle = '#111111';
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 2; j++) {
+                    if ((i + j) % 2 === 0) ctx.fillRect(i * 16, j * 16, 16, 16);
+                }
+            }
+            const checkerTexture = new THREE.CanvasTexture(canvas);
+            checkerTexture.wrapS = THREE.RepeatWrapping;
+            checkerTexture.wrapT = THREE.RepeatWrapping;
+            checkerTexture.repeat.set(5, 1);
+
+            const finishMat = new THREE.MeshStandardMaterial({ map: checkerTexture, roughness: 0.4 });
+            const finishLine = new THREE.Mesh(finishGeo, finishMat);
+            finishLine.position.copy(startPos);
+            finishLine.position.y = 0.05;
+            
+            const angle = Math.atan2(startTangent.x, startTangent.z);
+            finishLine.rotation.y = angle + Math.PI / 2;
+            scene.add(finishLine);
+
+            // Cổng chào Neon / Hoa
+            const archGroup = new THREE.Group();
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0xff1493, metalness: 0.5, roughness: 0.2 });
+            const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 10), pillarMat);
+            p1.position.set(-10.5, 5, 0);
+            const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 10), pillarMat);
+            p2.position.set(10.5, 5, 0);
+            const topBar = new THREE.Mesh(new THREE.BoxGeometry(22, 1.4, 1.4), pillarMat);
+            topBar.position.set(0, 10, 0);
+
+            // Bảng chữ START / FINISH
+            const signMat = new THREE.MeshStandardMaterial({ color: 0xff69b4, emissive: 0xff1493, emissiveIntensity: 0.4 });
+            const sign = new THREE.Mesh(new THREE.BoxGeometry(11, 2.2, 0.3), signMat);
+            sign.position.set(0, 10, 0.7);
+
+            archGroup.add(p1, p2, topBar, sign);
+            archGroup.position.copy(startPos);
+            archGroup.rotation.y = angle + Math.PI / 2;
+            scene.add(archGroup);
+        }
+
+        // Hàng rào vật lý kín 2 bên đường đua
+        function createPhysicalFences() {
+            const fenceMat = new THREE.MeshStandardMaterial({ color: 0xffb6c1, roughness: 0.4 });
+            const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+
+            const samples = 200;
+            for (let i = 0; i < samples; i++) {
+                const u = i / samples;
+                const pt = trackCurve.getPointAt(u);
+                const tangent = trackCurve.getTangentAt(u);
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                // Hàng rào Trái & Phải sát đường đua
+                [-10.2, 10.2].forEach(offset => {
+                    const fencePos = pt.clone().add(normal.clone().multiplyScalar(offset));
+                    
+                    // Cột rào
+                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.6), postMat);
+                    post.position.set(fencePos.x, 0.8, fencePos.z);
+                    post.castShadow = true;
+                    scene.add(post);
+
+                    // Thanh chắn ngang
+                    if (i < samples - 1) {
+                        const nextPt = trackCurve.getPointAt((i + 1) / samples);
+                        const nextTangent = trackCurve.getTangentAt((i + 1) / samples);
+                        const nextNormal = new THREE.Vector3(-nextTangent.z, 0, nextTangent.x).normalize();
+                        const nextFencePos = nextPt.clone().add(nextNormal.multiplyScalar(offset));
+
+                        const dist = fencePos.distanceTo(nextFencePos);
+                        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, dist * 1.05), fenceMat);
+                        rail.position.set(
+                            (fencePos.x + nextFencePos.x) / 2,
+                            0.9,
+                            (fencePos.z + nextFencePos.z) / 2
+                        );
+                        rail.lookAt(nextFencePos);
+                        rail.castShadow = true;
+                        scene.add(rail);
+                    }
+                });
+            }
+        }
+
+        // --- 4. THỰC VẬT, MÂY & BIRDS ---
+        function createEnvironment() {
+            // Thảm cỏ
+            const groundGeo = new THREE.PlaneGeometry(1000, 1000);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x90ee90, roughness: 0.9 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Bụi Hoa Hồng & Cây Xanh
+            const roseGeo = new THREE.SphereGeometry(0.38, 8, 8);
+            const roseRedMat = new THREE.MeshStandardMaterial({ color: 0xff0055, roughness: 0.3 });
+            const rosePinkMat = new THREE.MeshStandardMaterial({ color: 0xff69b4, roughness: 0.3 });
+            const bushGeo = new THREE.DodecahedronGeometry(1.4, 1);
+            const bushMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57, roughness: 0.8 });
+
+            for (let i = 0; i < 380; i++) {
+                const u = Math.random();
+                const pt = trackCurve.getPointAt(u);
+                
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const distOffset = side * (14 + Math.random() * 38);
+                const tangent = trackCurve.getTangentAt(u);
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                const pos = pt.clone().add(normal.multiplyScalar(distOffset));
+
+                // Bụi cây lá xanh
+                const bush = new THREE.Mesh(bushGeo, bushMat);
+                bush.position.set(pos.x, 0.7 + Math.random() * 0.3, pos.z);
+                const sc = 0.8 + Math.random() * 0.7;
+                bush.scale.set(sc, sc, sc);
+                bush.castShadow = true;
+                scene.add(bush);
+
+                // Hoa hồng nở rực rỡ
+                const flowerCount = 3 + Math.floor(Math.random() * 4);
+                for (let f = 0; f < flowerCount; f++) {
+                    const flowerMat = Math.random() > 0.5 ? roseRedMat : rosePinkMat;
+                    const rose = new THREE.Mesh(roseGeo, flowerMat);
+                    rose.position.set(
+                        pos.x + (Math.random() - 0.5) * 1.8,
+                        bush.position.y + 0.5 + Math.random() * 0.7,
+                        pos.z + (Math.random() - 0.5) * 1.8
+                    );
+                    scene.add(rose);
+                }
+
+                if (i % 3 === 0) {
+                    createTree(pos.x + (Math.random() - 0.5) * 12, pos.z + (Math.random() - 0.5) * 12);
+                }
+            }
+        }
+
+        function createTree(x, z) {
+            const treeGroup = new THREE.Group();
+            
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 4.8), trunkMat);
+            trunk.position.y = 2.4;
+            trunk.castShadow = true;
+            treeGroup.add(trunk);
+
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x3cb371, roughness: 0.6 });
+            const f1 = new THREE.Mesh(new THREE.ConeGeometry(3.8, 5.2, 8), foliageMat);
+            f1.position.y = 6.0;
+            f1.castShadow = true;
+            
+            const f2 = new THREE.Mesh(new THREE.ConeGeometry(2.9, 4.2, 8), foliageMat);
+            f2.position.y = 8.1;
+            f2.castShadow = true;
+
+            treeGroup.add(f1, f2);
+            treeGroup.position.set(x, 0, z);
+            scene.add(treeGroup);
+        }
+
+        function createClouds() {
+            const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, transparent: true, opacity: 0.85 });
+            
+            for (let i = 0; i < 22; i++) {
+                const cloudGroup = new THREE.Group();
+                const count = 4 + Math.floor(Math.random() * 4);
+                
+                for (let j = 0; j < count; j++) {
+                    const p = new THREE.Mesh(new THREE.SphereGeometry(6 + Math.random() * 5, 8, 8), cloudMat);
+                    p.position.set(j * 4, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3);
+                    cloudGroup.add(p);
+                }
+
+                cloudGroup.position.set(
+                    (Math.random() - 0.5) * 480,
+                    35 + Math.random() * 22,
+                    (Math.random() - 0.5) * 480
+                );
+
+                clouds.push(cloudGroup);
+                scene.add(cloudGroup);
+            }
+        }
+
+        function createBirds() {
+            const birdMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+            
+            for (let i = 0; i < 20; i++) {
+                const birdGroup = new THREE.Group();
+                
+                const wingShape = new THREE.Shape();
+                wingShape.moveTo(0, 0);
+                wingShape.lineTo(1.5, 0.55);
+                wingShape.lineTo(0.5, -0.45);
+                wingShape.closePath();
+
+                const wingGeo = new THREE.ShapeGeometry(wingShape);
+                const leftWing = new THREE.Mesh(wingGeo, birdMat);
+                const rightWing = new THREE.Mesh(wingGeo, birdMat);
+                rightWing.scale.x = -1;
+
+                birdGroup.add(leftWing, rightWing);
+
+                birdGroup.position.set(
+                    (Math.random() - 0.5) * 350,
+                    22 + Math.random() * 25,
+                    (Math.random() - 0.5) * 350
+                );
+
+                birds.push({
+                    mesh: birdGroup,
+                    leftWing: leftWing,
+                    rightWing: rightWing,
+                    speed: 0.35 + Math.random() * 0.2,
+                    wingSpeed: 0.12 + Math.random() * 0.1,
+                    angle: Math.random() * Math.PI * 2
+                });
+
+                scene.add(birdGroup);
+            }
+        }
+
+        // --- 5. MODEL XE ĐUA & NITRO ---
+        function createCar(colorHex, isPlayer = false) {
+            const carGroup = new THREE.Group();
+
+            // Thân xe thể thao
+            const bodyGeo = new THREE.BoxGeometry(2.3, 0.95, 4.3);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: colorHex,
+                metalness: 0.6,
+                roughness: 0.2
+            });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.72;
+            body.castShadow = true;
+            carGroup.add(body);
+
+            // Mui xe kính
+            const cabinGeo = new THREE.BoxGeometry(1.85, 0.75, 2.1);
+            const cabinMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.9 });
+            const cabin = new THREE.Mesh(cabinGeo, cabinMat);
+            cabin.position.set(0, 1.35, -0.2);
+            carGroup.add(cabin);
+
+            // Bánh xe
+            const wheelGeo = new THREE.CylinderGeometry(0.48, 0.48, 0.42, 16);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+            wheelGeo.rotateZ(Math.PI / 2);
+
+            const wheelPositions = [
+                [-1.2, 0.48, 1.45],  // Trước Trái
+                [1.2, 0.48, 1.45],   // Trước Phải
+                [-1.2, 0.48, -1.45], // Sau Trái
+                [1.2, 0.48, -1.45]   // Sau Phải
+            ];
+
+            wheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                wheel.position.set(...pos);
+                wheel.castShadow = true;
+                carGroup.add(wheel);
+            });
+
+            // Đèn pha
+            const hlGeo = new THREE.SphereGeometry(0.2, 8, 8);
+            const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const hl1 = new THREE.Mesh(hlGeo, hlMat);
+            hl1.position.set(-0.85, 0.85, 2.18);
+            const hl2 = new THREE.Mesh(hlGeo, hlMat);
+            hl2.position.set(0.85, 0.85, 2.18);
+            carGroup.add(hl1, hl2);
+
+            // Lửa Nitro sau đuôi xe người chơi
+            if (isPlayer) {
+                const nitroGeo = new THREE.ConeGeometry(0.4, 1.8, 8);
+                nitroGeo.rotateX(-Math.PI / 2);
+                const nitroMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0 });
+                const nitroFlame = new THREE.Mesh(nitroGeo, nitroMat);
+                nitroFlame.position.set(0, 0.6, -2.8);
+                carGroup.add(nitroFlame);
+                carGroup.userData.nitroFlame = nitroFlame;
+            }
+
+            return carGroup;
+        }
+
+        function createAICars() {
+            const aiColors = [0x00bfff, 0x32cd32, 0xffff00];
+            for (let i = 0; i < 3; i++) {
+                const aiCar = createCar(aiColors[i]);
+                const progress = 0.02 + i * 0.02;
+                const pt = trackCurve.getPointAt(progress);
+                aiCar.position.copy(pt);
+                
+                aiCars.push({
+                    mesh: aiCar,
+                    progress: progress,
+                    lap: 1,
+                    totalProgress: progress,
+                    speed: 0.0008 + Math.random() * 0.0002,
+                    laneOffset: (i - 1) * 3.2
+                });
+
+                scene.add(aiCar);
+            }
+        }
+
+        // --- 6. ĐIỀU KHIỂN & SỰ KIỆN ---
+        function setupControls() {
+            window.addEventListener('keydown', (e) => { keyState[e.code] = true; });
+            window.addEventListener('keyup', (e) => { keyState[e.code] = false; });
+
+            document.getElementById('btn-start').addEventListener('click', startGame);
+            document.getElementById('btn-restart').addEventListener('click', restartGame);
+
+            // Nút Touch Mobile
+            const bindTouch = (id, key) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); keyState[key] = true; });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); keyState[key] = false; });
+            };
+
+            bindTouch('btn-gas', 'ArrowUp');
+            bindTouch('btn-brake', 'ArrowDown');
+            bindTouch('btn-left', 'ArrowLeft');
+            bindTouch('btn-right', 'ArrowRight');
+            bindTouch('btn-nitro', 'Space');
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            gameState = 'PLAYING';
+            startTime = Date.now();
+        }
+
+        function restartGame() {
+            document.getElementById('win-screen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            
+            playerSpeed = 0;
+            playerLap = 1;
+            lastProgress = 0;
+            playerTotalProgress = 0;
+            nitroAmount = 100;
+            playerCar.position.set(0, 0, 0);
+            playerCar.rotation.set(0, 0, 0);
+
+            aiCars.forEach((ai, idx) => {
+                ai.progress = 0.02 + idx * 0.02;
+                ai.lap = 1;
+                ai.totalProgress = ai.progress;
+            });
+
+            fireworks.forEach(f => scene.remove(f.mesh));
+            fireworks = [];
+
+            gameState = 'PLAYING';
+            startTime = Date.now();
+        }
+
+        // --- 7. VẬT LÝ VA CHẠM HÀNG RÀO (HARD BOUNDARIES) ---
+        function checkFenceCollisions() {
+            // Tìm điểm gần nhất trên đường đua
+            let minDistance = Infinity;
+            let closestPt = null;
+            let closestU = 0;
+
+            for (let u = 0; u <= 1; u += 0.005) {
+                const pt = trackCurve.getPointAt(u);
+                const dist = pt.distanceTo(playerCar.position);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestPt = pt;
+                    closestU = u;
+                }
+            }
+
+            // Khoảng cách từ tâm đường đua vượt quá giới hạn hàng rào
+            if (minDistance > TRACK_HALF_WIDTH) {
+                const tangent = trackCurve.getTangentAt(closestU);
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                // Xác định hướng dội xe lại lòng đường
+                const carVec = playerCar.position.clone().sub(closestPt);
+                const dot = carVec.dot(normal);
+                const side = dot > 0 ? 1 : -1;
+
+                // Vị trí hàng rào
+                const maxAllowedPos = closestPt.clone().add(normal.multiplyScalar(side * TRACK_HALF_WIDTH));
+                playerCar.position.copy(maxAllowedPos);
+
+                // Giảm tốc độ và nảy lại
+                playerSpeed = -playerSpeed * 0.4;
+            }
+
+            return closestU;
+        }
+
+        // --- 8. PHÁO HOA & CHIẾN THẮNG ---
+        function createFirework() {
+            const particleCount = 75;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const velocities = [];
+
+            const color = new THREE.Color().setHSL(Math.random(), 1.0, 0.6);
+
+            const x = (Math.random() - 0.5) * 60;
+            const y = 15 + Math.random() * 25;
+            const z = playerCar.position.z + (Math.random() - 0.5) * 40;
+
+            for (let i = 0; i < particleCount; i++) {
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const speed = 0.35 + Math.random() * 0.5;
+
+                velocities.push(new THREE.Vector3(
+                    speed * Math.sin(phi) * Math.cos(theta),
+                    speed * Math.sin(phi) * Math.sin(theta),
+                    speed * Math.cos(phi)
+                ));
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const material = new THREE.PointsMaterial({ size: 0.95, color: color, transparent: true, opacity: 1 });
+            const pSystem = new THREE.Points(geometry, material);
+            
+            scene.add(pSystem);
+            fireworks.push({ mesh: pSystem, velocities: velocities, life: 1.0 });
+        }
+
+        function triggerWin() {
+            gameState = 'WON';
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('win-screen').classList.remove('hidden');
+
+            for (let i = 0; i < 12; i++) {
+                setTimeout(createFirework, i * 200);
+            }
+        }
+
+        // --- 9. MINIMAP ---
+        function drawMinimap() {
+            minimapCtx.clearRect(0, 0, 100, 100);
+
+            // Đường đua
+            minimapCtx.beginPath();
+            minimapCtx.strokeStyle = '#ffffff';
+            minimapCtx.lineWidth = 4;
+
+            for (let i = 0; i <= 100; i++) {
+                const u = i / 100;
+                const pt = trackCurve.getPointAt(u);
+                const mx = 50 + (pt.x / 300) * 40;
+                const my = 50 + (pt.z / 300) * 40;
+
+                if (i === 0) minimapCtx.moveTo(mx, my);
+                else minimapCtx.lineTo(mx, my);
+            }
+            minimapCtx.closePath();
+            minimapCtx.stroke();
+
+            // Đối thủ AI (Chấm Vàng)
+            aiCars.forEach(ai => {
+                const mx = 50 + (ai.mesh.position.x / 300) * 40;
+                const my = 50 + (ai.mesh.position.z / 300) * 40;
+                minimapCtx.fillStyle = '#ffcc00';
+                minimapCtx.beginPath();
+                minimapCtx.arc(mx, my, 3, 0, Math.PI * 2);
+                minimapCtx.fill();
+            });
+
+            // Xe Người Chơi (Chấm Hồng Đỏ)
+            const px = 50 + (playerCar.position.x / 300) * 40;
+            const py = 50 + (playerCar.position.z / 300) * 40;
+            minimapCtx.fillStyle = '#ff1493';
+            minimapCtx.beginPath();
+            minimapCtx.arc(px, py, 4.5, 0, Math.PI * 2);
+            minimapCtx.fill();
+        }
+
+        // --- 10. VÒNG LẶP CẬP NHẬT GAME ---
+        function updatePlayer() {
+            if (gameState !== 'PLAYING') return;
+
+            // Xử lý Nitro Boost
+            isNitroActive = (keyState['Space'] || keyState['ShiftLeft'] || keyState['ShiftRight']) && nitroAmount > 1;
+            
+            let currentMaxSpeed = BASE_MAX_SPEED;
+            if (isNitroActive) {
+                currentMaxSpeed = NITRO_MAX_SPEED;
+                nitroAmount = Math.max(0, nitroAmount - 0.7);
+                playerCar.userData.nitroFlame.material.opacity = 0.9;
+            } else {
+                nitroAmount = Math.min(100, nitroAmount + 0.15); // Hồi Nitro từ từ
+                playerCar.userData.nitroFlame.material.opacity = 0;
+            }
+
+            // Cập nhật giao diện Nitro HUD
+            document.getElementById('nitro-bar').style.width = `${nitroAmount}%`;
+            document.getElementById('nitro-text').innerText = `${Math.round(nitroAmount)}%`;
+
+            // Ga / Phanh
+            if (keyState['ArrowUp'] || keyState['KeyW']) {
+                playerSpeed = Math.min(playerSpeed + ACCELERATION, currentMaxSpeed);
+            } else if (keyState['ArrowDown'] || keyState['KeyS']) {
+                playerSpeed = Math.max(playerSpeed - ACCELERATION, -BASE_MAX_SPEED * 0.4);
+            } else {
+                playerSpeed *= FRICTION;
+            }
+
+            // Đánh lái
+            if (keyState['ArrowLeft'] || keyState['KeyA']) {
+                playerCar.rotation.y += TURN_SPEED * (playerSpeed >= 0 ? 1 : -1);
+            }
+            if (keyState['ArrowRight'] || keyState['KeyD']) {
+                playerCar.rotation.y -= TURN_SPEED * (playerSpeed >= 0 ? 1 : -1);
+            }
+
+            playerCar.translateZ(playerSpeed);
+
+            // Kiểm tra va chạm hàng rào vật lý kín
+            const currentProgress = checkFenceCollisions();
+
+            // Tính toán vòng đua Laps
+            if (lastProgress > 0.85 && currentProgress < 0.15) {
+                playerLap++;
+                if (playerLap > TOTAL_LAPS) {
+                    triggerWin();
+                    return;
+                }
+            } else if (lastProgress < 0.15 && currentProgress > 0.85) {
+                playerLap = Math.max(1, playerLap - 1);
+            }
+            lastProgress = currentProgress;
+            playerTotalProgress = (playerLap - 1) + currentProgress;
+
+            // Camera bám theo mượt mà
+            const relativeCameraOffset = new THREE.Vector3(0, 4.3, -9.5);
+            const cameraPosition = relativeCameraOffset.applyMatrix4(playerCar.matrixWorld);
+            camera.position.lerp(cameraPosition, 0.14);
+            camera.lookAt(playerCar.position.x, playerCar.position.y + 1.5, playerCar.position.z + 3);
+
+            // HUD
+            const kmh = Math.round(Math.abs(playerSpeed) * 230);
+            document.getElementById('hud-speed').innerText = kmh;
+            document.getElementById('hud-lap').innerText = `${playerLap}/${TOTAL_LAPS}`;
+
+            elapsedTime = (Date.now() - startTime) / 1000;
+            const mins = Math.floor(elapsedTime / 60).toString().padStart(2, '0');
+            const secs = (elapsedTime % 60).toFixed(2).padStart(5, '0');
+            document.getElementById('hud-time').innerText = `${mins}:${secs}`;
+
+            drawMinimap();
+        }
+
+        function updateAI() {
+            if (gameState !== 'PLAYING') return;
+
+            let playerRank = 1;
+
+            aiCars.forEach(ai => {
+                ai.progress += ai.speed;
+                if (ai.progress > 1) {
+                    ai.progress -= 1;
+                    ai.lap++;
+                }
+
+                ai.totalProgress = (ai.lap - 1) + ai.progress;
+
+                const pt = trackCurve.getPointAt(ai.progress);
+                const tangent = trackCurve.getTangentAt(ai.progress);
+                const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+                const targetPos = pt.clone().add(normal.multiplyScalar(ai.laneOffset));
+                ai.mesh.position.lerp(targetPos, 0.1);
+
+                const angle = Math.atan2(tangent.x, tangent.z);
+                ai.mesh.rotation.y = angle;
+
+                if (ai.totalProgress > playerTotalProgress) {
+                    playerRank++;
+                }
+            });
+
+            document.getElementById('hud-rank').innerText = playerRank;
+        }
+
+        function updateEnvironmentElements() {
+            // Chim bay
+            birds.forEach(bird => {
+                bird.mesh.position.x += Math.cos(bird.angle) * bird.speed;
+                bird.mesh.position.z += Math.sin(bird.angle) * bird.speed;
+
+                const wingRot = Math.sin(Date.now() * bird.wingSpeed) * 0.45;
+                bird.leftWing.rotation.z = wingRot;
+                bird.rightWing.rotation.z = -wingRot;
+
+                if (Math.abs(bird.mesh.position.x) > 230) bird.angle += Math.PI;
+            });
+
+            // Mây trôi
+            clouds.forEach(cloud => {
+                cloud.position.x += 0.03;
+                if (cloud.position.x > 260) cloud.position.x = -260;
+            });
+        }
+
+        function updateFireworks() {
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                const fw = fireworks[i];
+                fw.life -= 0.015;
+                const positions = fw.mesh.geometry.attributes.position.array;
+
+                for (let j = 0; j < fw.velocities.length; j++) {
+                    positions[j * 3] += fw.velocities[j].x;
+                    positions[j * 3 + 1] += fw.velocities[j].y;
+                    positions[j * 3 + 2] += fw.velocities[j].z;
+                    fw.velocities[j].y -= 0.008;
+                }
+
+                fw.mesh.geometry.attributes.position.needsUpdate = true;
+                fw.mesh.material.opacity = fw.life;
+
+                if (fw.life <= 0) {
+                    scene.remove(fw.mesh);
+                    fireworks.splice(i, 1);
+                }
+            }
+
+            if (gameState === 'WON' && Math.random() < 0.07) {
+                createFirework();
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Vòng lặp Animation
+        function animate() {
+            requestAnimationFrame(animate);
+
+            updatePlayer();
+            updateAI();
+            updateEnvironmentElements();
+            updateFireworks();
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
